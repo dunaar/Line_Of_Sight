@@ -1,0 +1,6 @@
+msgspec
+netCDF4
+numba
+numpy
+tqdm
+#matplotlib
