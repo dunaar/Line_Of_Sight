@@ -7,7 +7,7 @@ File   : get_altitudes_dtm_mp.py
 
 Author: Pessel Arnaud
 Date: 2025-07
-Version: 1.0
+Version: 1.1
 GitHub: https://github.com/dunaar/Line_Of_Sight
 License: MIT
 
@@ -24,7 +24,7 @@ Description:
     in the shared memory blocks.
 """
 
-__version__ = "1.0"
+__version__ = "1.1"
 
 # === Built-in ===
 import argparse
@@ -374,7 +374,7 @@ class Shm_Dtm_Loader:
                     shm_tiles_indices.array[lat_idx, :] = tiles_lon_indices_in_bands[lat_idx, :] + idx_cumul
                     idx_cumul += band_size
 
-                expected_total_size = idx_cumul
+                expected_total_size = int(idx_cumul)
 
                 # Process latitude bands
                 lat_keys = sorted(

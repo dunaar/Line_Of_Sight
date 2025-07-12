@@ -6,7 +6,7 @@ File   : line_of_sight.py
 
 Author: Pessel Arnaud
 Date: 2025-07
-Version: 1.0
+Version: 1.1
 
 Description:
     This script calculates intervisibility between two geographic points (origin and targets) using a Digital Terrain Model (DTM) stored in shared memory. 
@@ -49,7 +49,7 @@ Usage:
     - A boolean value indicating whether the target is visible from the origin (True for visible, False for obstructed).
 """
 
-__version__ = "1.0"
+__version__ = "1.1"
 
 # === Built-in ===
 import logging
@@ -287,7 +287,7 @@ def are_intervisible_core(xs_samples: list_float32_array, ys_samples  : list_flo
         # Calculate distances along the LOS from the origin
         dists = np.sqrt((xs_samples[i] - xs_samples[i][0])**2 +
                         (ys_samples[i] - ys_samples[i][0])**2 +
-                        (zs_samples[i] - zs_samples[i][0])**2).astype(np.float32)
+                        (zs_samples[i] - zs_samples[i][0])**2)
         # Compute height adjustments for curvature and refraction
         dh = delta_h(R_EARTH, R, dists_tot[i], dists)
         # Adjust LOS altitudes and compare with terrain altitudes
