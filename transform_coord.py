@@ -12,10 +12,9 @@ GitHub: https://github.com/dunaar/Line_Of_Sight
 License: MIT
 
 Description:
-    This module provides functions to convert between geographic coordinates (longitude, latitude, altitude) and
-    Cartesian coordinates (x, y, z).
-    It includes functions for both direct conversion and inverse conversion, as well as functions to calculate
-    great circle distances and straight-line distances between points on a sphere, adjusted for altitude. 
+    This module provides functions to convert between geographic coordinates (longitude, latitude, altitude) and Cartesian coordinates (x, y, z).
+    It includes functions for both direct and inverse conversion, as well as functions to calculate
+    great circle distances and straight-line distances between points on a sphere, adjusted for altitude.
     It uses NumPy for vectorized operations.
 
 Dependencies:
@@ -38,34 +37,38 @@ __version__ = "1.1"
 import os
 import time
 import numpy as np
+from numba import jit
 
-NUM_CORES = os.cpu_count()  # Détecter le nombre de cœurs
-#print('NUM_CORES', NUM_CORES)
+NUM_CORES = os.cpu_count()  # Detect number of CPU cores
+# print('NUM_CORES', NUM_CORES)
 # -----------------------------------------------------------------------------
 
-# %% Constantes
+# %% Constants
 # -----------------------------------------------------------------------------
-R_EARTH = np.float32(6371000.0)
+R_EARTH = np.float32(6371000.0)      # Mean radius of the Earth in meters
+D2R     = np.float32(np.pi / 180.0)  # Degrees to radians
+R2D     = np.float32(180.0 / np.pi)  # Radians to degrees
 # -----------------------------------------------------------------------------
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Conversion directe : WGS84 → Cartésiennes
+# Direct conversion: WGS84 → Cartesian coordinates
 
+@jit(nopython=True, cache=True)
 def geo_to_cart(lon, lat, alt, R=R_EARTH):
     """
-    Convertit des coordonnées géographiques (lon, lat, alt) en coordonnées cartésiennes (x, y, z).
-    Hypothèse: terre sphérique
-    Entrées : lon, lat (en degrés), alt (en mètres), tableaux NumPy float32
-    Sortie : x, y, z (en mètres), tableaux NumPy float32
+    Converts geographic coordinates (lon, lat, alt) to Cartesian coordinates (x, y, z).
+    Assumption: Spherical Earth
+    Inputs: lon, lat (in degrees), alt (in meters); NumPy arrays of float32 or scalars
+    Outputs: x, y, z (in meters); NumPy arrays of float32 or scalars
     """
-    lon_rad = np.radians(lon, dtype=np.float32)
-    lat_rad = np.radians(lat, dtype=np.float32)
-    r_alt   = np.float32(R + alt)  # Précalculer R + alt
-    
-    sin_lat         = np.sin(lat_rad, dtype=np.float32)
-    cos_lat_cos_lon = np.cos(lat_rad, dtype=np.float32) * np.cos(lon_rad, dtype=np.float32)
-    cos_lat_sin_lon = np.cos(lat_rad, dtype=np.float32) * np.sin(lon_rad, dtype=np.float32)
-    
+    lon_rad = D2R * lon
+    lat_rad = D2R * lat
+    r_alt   = R + alt
+
+    sin_lat         = np.sin(lat_rad)
+    cos_lat_cos_lon = np.cos(lat_rad) * np.cos(lon_rad)
+    cos_lat_sin_lon = np.cos(lat_rad) * np.sin(lon_rad)
+
     x = r_alt * cos_lat_cos_lon
     y = r_alt * cos_lat_sin_lon
     z = r_alt * sin_lat
@@ -74,20 +77,21 @@ def geo_to_cart(lon, lat, alt, R=R_EARTH):
 # -----------------------------------------------------------------------------
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Conversion inverse : Cartésiennes → WGS84
+# Inverse conversion: Cartesian → WGS84 (Geographic coordinates)
 
+@jit(nopython=True, cache=True)
 def cart_to_geo(x, y, z, R=R_EARTH):
     """
-    Convertit des coordonnées cartésiennes (x, y, z) en coordonnées géographiques (lon, lat, alt).
-    Hypothèse: terre sphérique
-    Entrées : x, y, z (en mètres), tableaux NumPy float32
-    Sortie : lon, lat (en degrés), alt (en mètres), tableaux NumPy float32
+    Converts Cartesian coordinates (x, y, z) to geographic coordinates (lon, lat, alt).
+    Assumption: Spherical Earth
+    Inputs: x, y, z (in meters), NumPy arrays of float32 or scalars
+    Outputs: lon, lat (in degrees), alt (in meters); NumPy arrays of float32 or scalars
     """
-    r_alt = np.sqrt(x**2 + y**2 + z**2, dtype=np.float32)
+    r_alt = np.sqrt(x**2 + y**2 + z**2)
 
-    lon = np.degrees(np.arctan2(y, x, dtype=np.float32), dtype=np.float32)
-    lat = np.degrees(np.arcsin(z / r_alt, dtype=np.float32), dtype=np.float32)
-    alt = np.float32(r_alt - R)
+    lon = R2D * np.arctan2(y, x)
+    lat = R2D * np.arcsin(z / r_alt)
+    alt = r_alt - R
     
     return lon, lat, alt
 # -----------------------------------------------------------------------------
@@ -96,28 +100,26 @@ def great_circle_distances(lons1: np.ndarray, lats1: np.ndarray, alts1: np.ndarr
                            lons2: np.ndarray, lats2: np.ndarray, alts2: np.ndarray,
                            R: float = R_EARTH) -> np.ndarray:
     """
-    Calculate the great circle distance between multiple pairs of points on a sphere, adjusted for altitude.
+    Calculates the great circle distance between multiple pairs of points on a sphere, adjusted for altitude.
 
-    This function uses the **haversine formula** to compute the surface distance and incorporates the
-    altitude difference to approximate the 3D distance.
+    This function uses the haversine formula to compute the surface distance and incorporates the altitude difference to approximate the 3D distance.
 
     Parameters:
-    - lats1: Union[np.ndarray]: Latitude of the first set of points in degrees (scalar or array).
-    - lons1: Union[np.ndarray]: Longitude of the first set of points in degrees (scalar or array).
-    - alts1: Union[np.ndarray]: Altitude of the first set of points in meters (scalar or array).
-    - lats2 [np.ndarray]: Latitude of the second set of points in degrees (must match shape of `lats1` or be broadcastable).
-    - lons2 [np.ndarray]: Longitude of the second set of points in degrees (must match shape of `lons1` or be broadcastable).
-    - alts2 [np.ndarray]: Altitude of the second set of points in meters (must match shape of `alts1` or be broadcastable).
-    - R: float, optional : Radius of the sphere in meters (default is Earth's mean radius: 6,371,000 meters).
+    - lons1: np.ndarray or float: Longitude of the first set of points in degrees.
+    - lats1: np.ndarray or float: Latitude of the first set of points in degrees.
+    - alts1: np.ndarray or float: Altitude of the first set of points in meters.
+    - lons2: np.ndarray or float: Longitude of the second set of points in degrees.
+    - lats2: np.ndarray or float: Latitude of the second set of points in degrees.
+    - alts2: np.ndarray or float: Altitude of the second set of points in meters.
+    - R: float, optional: Radius of the sphere in meters (default is Earth's mean radius: 6,371,000 meters).
 
     Returns:
     - distances: np.ndarray: Array of 3D distances in meters for each pair of points, combining surface distance and altitude difference.
 
     Notes:
-    - The **haversine formula** computes the great circle distance, which is then adjusted for altitude
-      using the Pythagorean theorem: `sqrt(d_horiz^2 + delta_h^2)`.
+    - The haversine formula computes the great circle distance, which is then adjusted for altitude using the Pythagorean theorem: sqrt(d_horiz^2 + delta_h^2).
     - Inputs are expected in degrees for latitude/longitude and meters for altitude.
-    - Broadcasting is supported for arrays of different shapes, following NumPy rules.
+    - Broadcasting is supported for arrays of different shapes, according to NumPy rules.
     - This is an approximation, as it assumes small altitude differences relative to Earth's radius.
     """
     # Convert degrees to radians
@@ -143,30 +145,30 @@ def straight_line_distances(lons1: np.ndarray, lats1: np.ndarray, alts1: np.ndar
                             lons2: np.ndarray, lats2: np.ndarray, alts2: np.ndarray,
                             R: float = R_EARTH) -> np.ndarray:
     """
-    Calculate the straight-line (3D Euclidean) distance between multiple pairs of points using **Cartesian coordinates**.
+    Calculates the straight-line (3D Euclidean) distance between multiple pairs of points using Cartesian coordinates.
 
     Parameters:
-    - lats1, np.ndarray: Latitude of the first set of points in degrees (scalar or array).
-    - lons1, np.ndarray: Longitude of the first set of points in degrees (scalar or array).
-    - alts1, float, np.ndarray: Altitude of the first set of points in meters (scalar or array).
-    - lats2, float, np.ndarray: Latitude of the second set of points in degrees (must match shape of `lats1` or be broadcastable).
-    - lons2, float, np.ndarray: Longitude of the second set of points in degrees (must match shape of `lons1` or be broadcastable).
-    - alts2, float, np.ndarray: Altitude of the second set of points in meters (must match shape of `alts1` or be broadcastable).
-    - R, float, optional: Radius of the sphere in meters (default is Earth's mean radius: 6,371,000 meters).
+    - lons1: np.ndarray or float: Longitude of the first set of points in degrees.
+    - lats1: np.ndarray or float: Latitude of the first set of points in degrees.
+    - alts1: np.ndarray or float: Altitude of the first set of points in meters.
+    - lons2: np.ndarray or float: Longitude of the second set of points in degrees.
+    - lats2: np.ndarray or float: Latitude of the second set of points in degrees.
+    - alts2: np.ndarray or float: Altitude of the second set of points in meters.
+    - R: float, optional: Radius of the sphere in meters (default is Earth's mean radius: 6,371,000 meters).
 
     Returns:
-    - distances, np.ndarray: 3D Euclidean distances in meters for each pair of points, including altitude.
+    - distances: np.ndarray: 3D Euclidean distances in meters for each pair of points, including altitude.
 
-    Command for testing:
-    ```bash
+    Example command for testing from command line:
+    ```
     python -m Line_Of_Sight.transform_coord
     ```
 
     Notes:
-    - Converts geographic coordinates (latitude, longitude, altitude) to **Cartesian (x, y, z)** coordinates.
-    - Computes the **Euclidean distance** in 3D space.
-    - Broadcasting is supported for arrays of different shapes, following NumPy rules.
-    - Assumes altitudes are relative to the Earth's surface (e.g., above sea level).
+    - Converts geographic coordinates (latitude, longitude, altitude) to Cartesian (x, y, z) coordinates.
+    - Computes the Euclidean distance in 3D space.
+    - Broadcasting is supported for arrays of different shapes, according to NumPy rules.
+    - Assumes altitudes are relative to Earth's surface (e.g., above sea level).
     """
     # Convert degrees to radians
     xs1, ys1, zs1 = geo_to_cart(lons1, lats1, alts1, R)
@@ -180,17 +182,17 @@ def straight_line_distances(lons1: np.ndarray, lats1: np.ndarray, alts1: np.ndar
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Main Execution
 def main() -> None:
-    # Générer des données de test (10 000 points, float32)
+    # Generate test data (10,000 points, float32)
     n = 10000
     lon = np.random.uniform(-180, 180, n).astype(np.float32)
     lat = np.random.uniform(-90, 90, n).astype(np.float32)
     alt = np.random.uniform(-1000, 10000, n).astype(np.float32)
     
-    # Mesurer les performances
+    # Measure performance
     results = {}
     REPEATS = 5000
 
-    # Tester NumPy
+    # Test NumPy implementation
     start = time.perf_counter_ns()
     for _ in range(REPEATS):
         x_np, y_np, z_np = geo_to_cart(lon, lat, alt)
@@ -201,12 +203,12 @@ def main() -> None:
         lon_np, lat_np, alt_np = cart_to_geo(x_np, y_np, z_np)
     results['cart_to_geo_numpy'] = (time.perf_counter_ns() - start) / (REPEATS * 1e9)
 
-    # Afficher les résultats
+    # Display results
     print(f"\nResults for {n} points (float32):")
     for impl, time_val in results.items():
-        print(f"  {impl}: {time_val:.6f} s")
+        print(f"  {impl}: {time_val*1000.:.3f} ms")
 
-    # Calculer les accélérations
+    # Calculate speedups
     if 'geo_to_cart_numba' in results and 'geo_to_cart_numpy' in results:
         print(f"Speedup Numba vs. NumPy: {(results['geo_to_cart_numpy'] / results['geo_to_cart_numba']):.2f}x")
 

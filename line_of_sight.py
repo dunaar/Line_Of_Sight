@@ -287,7 +287,7 @@ def are_intervisible_core(xs_samples: list_float32_array, ys_samples  : list_flo
     - Checks if any terrain altitude exceeds the adjusted LOS altitude, indicating an obstruction.
     - Parallelized with Numba's `prange` for performance with multiple targets.
     """
-    n: np.uint32 = len(xs_samples)
+    n = np.uint32(len(xs_samples))
     result = np.empty(n, dtype=np.bool_)
     for i in prange(n):
         # Calculate distances along the LOS from the origin
