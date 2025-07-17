@@ -103,8 +103,6 @@ def cart_to_geo_numpy(x, y, z, R=R_EARTH):
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %% geo_to_cart_numba
 if use_numba:
-    import numba
-    
     @jit(nopython=True, parallel=True, cache=True)
     def geo_to_cart_numba(lons, lats, alts, R=R_EARTH):
         R: np.float32 = np.float32(R)
@@ -265,28 +263,24 @@ def main() -> None:
     start = time.perf_counter_ns()
     for _ in range(REPEATS):
         x_np, y_np, z_np = geo_to_cart_numpy(lon, lat, alt)
-    time_numpy = (time.perf_counter_ns() - start) / (REPEATS * 1e9)
-    results['geo_to_cart_numpy'] = time_numpy
+    results['geo_to_cart_numpy'] = (time.perf_counter_ns() - start) / (REPEATS * 1e9)
 
     start = time.perf_counter_ns()
     for _ in range(REPEATS):
         lon_np, lat_np, alt_np = cart_to_geo_numpy(x_np, y_np, z_np)
-    time_numba = (time.perf_counter_ns() - start) / (REPEATS * 1e9)
-    results['cart_to_geo_numpy'] = time_numba
+    results['cart_to_geo_numpy'] = (time.perf_counter_ns() - start) / (REPEATS * 1e9)
 
     # Tester Numba
     if use_numba:
         start = time.perf_counter_ns()
         for _ in range(REPEATS):
             x_nb, y_nb, z_nb = geo_to_cart_numba(lon, lat, alt)
-        time_numba = (time.perf_counter_ns() - start) / (REPEATS * 1e9)
-        results['geo_to_cart_numba'] = time_numba
+        results['geo_to_cart_numba'] = (time.perf_counter_ns() - start) / (REPEATS * 1e9)
 
         start = time.perf_counter_ns()
         for _ in range(REPEATS):
             lon_nb, lat_nb, alt_nb = cart_to_geo_numba(x_nb, y_nb, z_nb)
-        time_numba = (time.perf_counter_ns() - start) / (REPEATS * 1e9)
-        results['cart_to_geo_numba'] = time_numba
+        results['cart_to_geo_numba'] = (time.perf_counter_ns() - start) / (REPEATS * 1e9)
 
     # Afficher les résultats
     print(f"\nResults for {n} points (float32):")
