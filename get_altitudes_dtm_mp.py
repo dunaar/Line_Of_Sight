@@ -627,7 +627,7 @@ Note:
         logging.info('Examples command for user mode:' +
         f'''
 ```
-python -m Line_Of_Sight.get_altitudes_dtm_mp user {cmd_shm_params} -5.20 48.20 -4.60 48.60
+python -m Line_Of_Sight.get_altitudes_dtm_mp user {cmd_shm_params} -5.20 48.20 -4.60 48.60 --grid-size 100
 python -m Line_Of_Sight.get_altitudes_dtm_mp user {cmd_shm_params} -17.00 27.90 -16.11 28.61
 python -m Line_Of_Sight.get_altitudes_dtm_mp user {cmd_shm_params} 55.22 -21.40 55.83 -20.86
 python -m Line_Of_Sight.get_altitudes_dtm_mp user {cmd_shm_params} -180 -90 180 90 --grid-size 3000
@@ -679,9 +679,9 @@ python -m Line_Of_Sight.line_of_sight {cmd_shm_params} --origin -3.2 47.5 30 --t
                 row = int(round( (y-self.ymin)/(self.ymax-self.ymin) * (self.nrows-1) ))
                 if 0 <= col < self.ncols and 0 <= row < self.nrows:
                     val = self.data[row, col]
-                    return f"x={x:.2f}, y={y:.2f}, value={val:.1f}"
+                    return f"x={x:.4f}, y={y:.4f}, value={val:.2f}, col={col}, row={row}"
                 else:
-                    return f"x={x:.2f}, y={y:.2f}, value=NaN"
+                    return f"x={x:.4f}, y={y:.4f}, value=NaN, col={col}, row={row}"
 
         for lon, lat in (args.lonlat1, args.lonlat2):
             logging.info(f'Long: {lon:11.6f}°, Lat: {lat:10.6f}°')
@@ -691,6 +691,8 @@ python -m Line_Of_Sight.line_of_sight {cmd_shm_params} --origin -3.2 47.5 30 --t
         lon_min, lon_max = (args.lonlat1[0], args.lonlat2[0]) if args.lonlat1[0] < args.lonlat2[0] else (args.lonlat2[0], args.lonlat1[0])
         lat_min, lat_max = (args.lonlat1[1], args.lonlat2[1]) if args.lonlat1[1] < args.lonlat2[1] else (args.lonlat2[1], args.lonlat1[1])
 
+        lon_stp = (lon_max - lon_min) / (args.grid_size-1)
+        lat_stp = (lat_max - lat_min) / (args.grid_size-1)
         lons = np.linspace(lon_min, lon_max, args.grid_size, dtype=np.float32)
         lats = np.linspace(lat_min, lat_max, args.grid_size, dtype=np.float32)
         lons_mesh, lats_mesh = np.meshgrid(lons, lats, indexing='ij')
@@ -698,30 +700,30 @@ python -m Line_Of_Sight.line_of_sight {cmd_shm_params} --origin -3.2 47.5 30 --t
         logging.debug('shm_dtm_user.get_altitudes(lons_mesh, lats_mesh)')
         alts = shm_dtm_user.get_altitudes(lons_mesh, lats_mesh) # Numba warmpup
         t0 = time.perf_counter()
-        alts = shm_dtm_user.get_altitudes(lons_mesh, lats_mesh)
+        alts = shm_dtm_user.get_altitudes(lons_mesh, lats_mesh).astype(np.float64)  # Get altitudes for the grid
         t1 = time.perf_counter()
         logging.info(f'Time to get altitudes: {t1-t0:.4f} seconds')
 
 
         #relief_colors = ["aquamarine", "darkgreen", "palegreen", "green", "bisque", "darkgoldenrod", "burlywood", "saddlebrown", "palegoldenrod", "crimson", "salmon", "red"]
+        color_sea_level = "#2B7BBA"  # Deep blue for sea level
         relief_colors = [
-            "#2B7BBA",  # Blue (Sea level)
             "#007000",
             "#6B8E00",  
-            "#00FF00",  # Pale green (Plains and lowlands)
-            "#FFFF00",  # Yellow (High hills)
-            "#CD853F",  # Light brown (Low mountains)
-            "#A0522D",  # Brown (Medium mountains)
-            "#703810",  # Dark brown (High mountains)
-            "#404040",  # Dark gray (Very high areas)
-            "#808080",  # Gray (High peaks)
-            "#FFFFFF"   # White (Snow and glaciers)
+            "#00FF00",
+            "#FFFF00",
+            "#CD853F",
+            "#A0522D",
+            "#703810",
+            "#404040",
+            "#808080",
+            "#FFFFFF",
             ]
 
         alt_gran = 20.  # Granularity of altitude intervals in meters
         alt_min  = 0.
         nb_nodes = len(relief_colors) # One node for each color, to be used in LinearSegmentedColormap
-        nb_steps = nb_nodes - 2  # Exclude water deep blue and one boundary color
+        nb_steps = nb_nodes - 1  # Exclude water deep blue and one boundary color
         alt_step = np.ceil((np.max(alts)-alt_min) / (nb_steps) / alt_gran) * alt_gran
         alt_max  = alt_min + (nb_steps) * alt_step
 
@@ -730,24 +732,31 @@ python -m Line_Of_Sight.line_of_sight {cmd_shm_params} --origin -3.2 47.5 30 --t
 
         # Contour_levels from 0. to max altitude corresponding to each color (except wa²ter deep blue) and each interval in relief_colors
         contour_levels = np.linspace(alt_min, alt_max, 2*nb_steps+1)
-        logging.debug(f'Contour levels: {[f'{level:f}' for level in contour_levels]}')
+        logging.info(f'Contour levels: {[f'{level:f}' for level in contour_levels]}')
 
-        nodes      = np.concatenate(([alt_min-alt_step/40., alt_min], np.linspace(alt_min+alt_step, alt_max, nb_steps)))
-        logging.debug(f'Nodes: {[f'{node:f}' for node in nodes]}')
+        nodes      = contour_levels[::2]  # Use every second level for the colormap nodes
+        logging.info(f'Nodes: {[f'{node:f}' for node in nodes]}')
         nodes_norm = (nodes-nodes.min()) / (nodes.max()-nodes.min())  # Shift nodes to start from 0
-        logging.debug(f'Nodes (normalized): {[f"{node:f}" for node in nodes_norm]}')
+        logging.info(f'Nodes (normalized): {[f"{node:f}" for node in nodes_norm]}')
         assert len(nodes_norm) == nb_nodes, f'Number of nodes {len(nodes_norm)} does not match number of colors {nb_nodes}'
         cmap   = LinearSegmentedColormap.from_list('relief_cmap', list(zip(nodes_norm, relief_colors)))
+        cmap.set_bad(color=color_sea_level)  # Set color for NaN values
 
+        #alts[alts <= 0.0] = np.nan  # Set invalid altitudes to NaN for better visualization
+        #alts_masked = np.ma.masked_array(alts, mask=(alts <= 0.), fill_value=-20)
+        alts_masked = np.copy(alts)
+        alts_masked[alts_masked <= 0.] = -np.nan  # Set
         fig, ax = plt.subplots(num='Relief', figsize=(20, 10), dpi=300)
-        im = ax.imshow(alts.T, origin='lower', extent=[lon_min, lon_max, lat_min, lat_max],
-                       vmin=nodes.min(), vmax=nodes.max(), cmap=cmap,  interpolation='bicubic',)
+        im = ax.imshow(alts_masked.T, origin='lower', extent=[lon_min-lon_stp/2., lon_max+lon_stp/2., lat_min-lat_stp/2., lat_max+lat_stp/2.],
+                       vmin=nodes.min(), vmax=nodes.max(), cmap=cmap,  interpolation='none',)
         ax.format_coord = FormatCoord(alts.T, [lon_min, lon_max, lat_min, lat_max])
 
         # Plot contour lines (black lines, linewidth 0.8)
         contours = ax.contour(lons_mesh, lats_mesh, alts, levels=contour_levels,
-                              colors='#DDDDDD', linewidths=0.2, extent=[lon_min, lon_max, lat_min, lat_max])
-        
+                              colors='#DDDDDD', linewidths=0.2)
+        #contourfs = ax.contourf(lons_mesh, lats_mesh, alts, levels=contour_levels[::2],
+        #                      linewidths=0.2, cmap=cmap, alpha=0.5)
+
         # Optionally add labels to contours
         ax.clabel(contours, inline=True, fontsize=3, fmt='%1.0f')
         
