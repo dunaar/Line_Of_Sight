@@ -630,7 +630,7 @@ Note:
 python -m Line_Of_Sight.get_altitudes_dtm_mp user {cmd_shm_params} -5.20 48.20 -4.60 48.60
 python -m Line_Of_Sight.get_altitudes_dtm_mp user {cmd_shm_params} -17.00 27.90 -16.11 28.61
 python -m Line_Of_Sight.get_altitudes_dtm_mp user {cmd_shm_params} 55.22 -21.40 55.83 -20.86
-python -m Line_Of_Sight.get_altitudes_dtm_mp user {cmd_shm_params} -180 -90 180 90
+python -m Line_Of_Sight.get_altitudes_dtm_mp user {cmd_shm_params} -180 -90 180 90 --grid-size 3000
 python -m Line_Of_Sight.line_of_sight {cmd_shm_params} --origin -3.2 47.5 30 --target -3.3 47.6 60
 ```''')
         logging.info('-- Mode: loader --')
@@ -660,7 +660,7 @@ python -m Line_Of_Sight.line_of_sight {cmd_shm_params} --origin -3.2 47.5 30 --t
         # Import matplotlib only when needed for standalone and user mode
         import matplotlib.pyplot as plt
         from matplotlib.colors import LinearSegmentedColormap
-        
+
         try:
             shm_dtm_user = Shm_Dtm_User(shm_names)
             logging.debug("Shared memory blocks loaded successfully.")
@@ -668,6 +668,21 @@ python -m Line_Of_Sight.line_of_sight {cmd_shm_params} --origin -3.2 47.5 30 --t
             logging.error(f"Error in mode: {e}")
             sys.exit(1)
         
+        class FormatCoord:
+            def __init__(self, data, extent):
+                self.data   = data
+                self.xmin, self.xmax, self.ymin, self.ymax = extent
+                self.nrows, self.ncols = data.shape
+
+            def __call__(self, x, y):
+                col = int(round( (x-self.xmin)/(self.xmax-self.xmin) * (self.ncols-1) ))
+                row = int(round( (y-self.ymin)/(self.ymax-self.ymin) * (self.nrows-1) ))
+                if 0 <= col < self.ncols and 0 <= row < self.nrows:
+                    val = self.data[row, col]
+                    return f"x={x:.2f}, y={y:.2f}, value={val:.1f}"
+                else:
+                    return f"x={x:.2f}, y={y:.2f}, value=NaN"
+
         for lon, lat in (args.lonlat1, args.lonlat2):
             logging.info(f'Long: {lon:11.6f}°, Lat: {lat:10.6f}°')
             alt = shm_dtm_user.get_altitude(lon, lat)
@@ -687,16 +702,56 @@ python -m Line_Of_Sight.line_of_sight {cmd_shm_params} --origin -3.2 47.5 30 --t
         t1 = time.perf_counter()
         logging.info(f'Time to get altitudes: {t1-t0:.4f} seconds')
 
-        colors = ["aquamarine", "darkgreen", "palegreen", "green", "bisque", "darkgoldenrod", "burlywood", "saddlebrown", "palegoldenrod", "crimson", "salmon", "red"]
-        nodes  = list(np.linspace(0, 1, len(colors)+1)[2:])
-        colors = ["darkblue"] + colors
-        nodes  = [0.0, 1e-6] + nodes
-        cmap   = LinearSegmentedColormap.from_list("custom_cmap", list(zip(nodes, colors)))
+
+        #relief_colors = ["aquamarine", "darkgreen", "palegreen", "green", "bisque", "darkgoldenrod", "burlywood", "saddlebrown", "palegoldenrod", "crimson", "salmon", "red"]
+        relief_colors = [
+            "#2B7BBA",  # Blue (Sea level)
+            "#007000",
+            "#6B8E00",  
+            "#00FF00",  # Pale green (Plains and lowlands)
+            "#FFFF00",  # Yellow (High hills)
+            "#CD853F",  # Light brown (Low mountains)
+            "#A0522D",  # Brown (Medium mountains)
+            "#703810",  # Dark brown (High mountains)
+            "#404040",  # Dark gray (Very high areas)
+            "#808080",  # Gray (High peaks)
+            "#FFFFFF"   # White (Snow and glaciers)
+            ]
+
+        alt_gran = 20.  # Granularity of altitude intervals in meters
+        alt_min  = 0.
+        nb_nodes = len(relief_colors) # One node for each color, to be used in LinearSegmentedColormap
+        nb_steps = nb_nodes - 2  # Exclude water deep blue and one boundary color
+        alt_step = np.ceil((np.max(alts)-alt_min) / (nb_steps) / alt_gran) * alt_gran
+        alt_max  = alt_min + (nb_steps) * alt_step
+
+        logging.info(f'Altitude range        : {np.min(alts):f}m to {np.max(alts):f}m')
+        logging.info(f'Working altitude range: {alt_min:f}m to {alt_max:f}m')
+
+        # Contour_levels from 0. to max altitude corresponding to each color (except wa²ter deep blue) and each interval in relief_colors
+        contour_levels = np.linspace(alt_min, alt_max, 2*nb_steps+1)
+        logging.debug(f'Contour levels: {[f'{level:f}' for level in contour_levels]}')
+
+        nodes      = np.concatenate(([alt_min-alt_step/40., alt_min], np.linspace(alt_min+alt_step, alt_max, nb_steps)))
+        logging.debug(f'Nodes: {[f'{node:f}' for node in nodes]}')
+        nodes_norm = (nodes-nodes.min()) / (nodes.max()-nodes.min())  # Shift nodes to start from 0
+        logging.debug(f'Nodes (normalized): {[f"{node:f}" for node in nodes_norm]}')
+        assert len(nodes_norm) == nb_nodes, f'Number of nodes {len(nodes_norm)} does not match number of colors {nb_nodes}'
+        cmap   = LinearSegmentedColormap.from_list('relief_cmap', list(zip(nodes_norm, relief_colors)))
 
         fig, ax = plt.subplots(num='Relief', figsize=(20, 10), dpi=300)
-        im = ax.imshow(alts.T, origin='lower',
-                     extent=[lon_min, lon_max, lat_min, lat_max], cmap=cmap)
-        fig.colorbar(im, ax=ax)
+        im = ax.imshow(alts.T, origin='lower', extent=[lon_min, lon_max, lat_min, lat_max],
+                       vmin=nodes.min(), vmax=nodes.max(), cmap=cmap,  interpolation='bicubic',)
+        ax.format_coord = FormatCoord(alts.T, [lon_min, lon_max, lat_min, lat_max])
+
+        # Plot contour lines (black lines, linewidth 0.8)
+        contours = ax.contour(lons_mesh, lats_mesh, alts, levels=contour_levels,
+                              colors='#DDDDDD', linewidths=0.2, extent=[lon_min, lon_max, lat_min, lat_max])
+        
+        # Optionally add labels to contours
+        ax.clabel(contours, inline=True, fontsize=3, fmt='%1.0f')
+        
+        fig.colorbar(im, ax=ax, ticks=contour_levels[::2], label='Altitude (m)')
         fig.savefig(f'figure_Relief_{args.grid_size}x{args.grid_size}.png')
         plt.show()
         
