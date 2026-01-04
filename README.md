@@ -18,8 +18,8 @@ The **Line Of Sight (LOS)** project is a Python-based tool designed to calculate
 - **NumPy**: For numerical operations and array handling
 - **Numba**: For performance optimization of computational loops
 - **msgspec**: For efficient serialization and deserialization
-- **netCDF4**: Required for preprocessing DTM data from NetCDF files into a tiled zip format
-- **Matplotlib** (optional): For visualizing LOS and terrain data
+- **netCDF4** (optional): Required only for preprocessing DTM data from NetCDF files into a tiled zip format
+- **Matplotlib** (optional): Required only for visualizing LOS and terrain data
 - **Built-in Modules**:
   - `struct`: For packing/unpacking complex numbers
   - `argparse`, `logging`, `time`, `collections`, `sys`, `tempfile`, `typing`: Standard Python libraries used for various utilities
