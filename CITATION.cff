@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Pessel"
+    given-names: "Arnaud"
+title: "Line Of Sight: High-Performance Intervisibility Calculation Tool"
+version: 1.1
+date-released: 2026-01-04
+url: "https://github.com/dunaar/Line_Of_Sight"
+license: MIT
+keywords:
+  - line-of-sight
+  - intervisibility
+  - gis
+  - dtm
+  - python
+  - numba
+  - shared-memory
+abstract: >
+  A high-performance Python library for calculating intervisibility between geographic 
+  points using Digital Terrain Models (DTM). It leverages Numba for JIT compilation 
+  and Python Shared Memory for efficient parallel processing, accounting for Earth's 
+  curvature and atmospheric refraction.
