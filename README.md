@@ -44,8 +44,8 @@ The **Line Of Sight (LOS)** project is a Python-based tool designed to calculate
 
 3. **Install Dependencies**:
    ```bash
-   pip install numpy numba msgspec netCDF4 tqdm
-   pip install matplotlib  # Optional for test and visualization
+   pip install numpy numba msgspec tqdm
+   pip install netCDF4 matplotlib  # Optional for dtm conversion, test and visualization
    ```
 
 4. **Prepare DTM Data**:
