@@ -22,6 +22,26 @@ Description:
     The script uses Numba for performance optimization and SharedMemoryArray with struct
     for efficient shared memory management, storing metadata (dtype and shape) directly
     in the shared memory blocks.
+
+Examples:
+
+  **Loader** mode: load data, keep shared memory available and provide shared memory block names for user mode:
+  ```
+    python -m Line_Of_Sight.get_altitudes_dtm_mp loader srtm15_tiles_compressed.zip
+  ```
+
+  **User** mode: Get altitude using shared memory blocks:
+  ```
+    python -m Line_Of_Sight.get_altitudes_dtm_mp user --tiles_1d_array tiles_1d_array_1234 --tiles_indices tiles_indices_1234 --tiles_nrows tiles_nrows_1234 --tiles_ncols tiles_ncols_1234 --grid-size 1000 55.22 -21.40 55.83 -20.86
+  ```
+
+  **Standalone** mode with visualization:
+  ```
+    python -m Line_Of_Sight.get_altitudes_dtm_mp standalone srtm15_tiles_compressed.zip --grid-size 1000 55.22 -21.40 55.83 -20.86
+  ```
+
+Note:
+  In user mode, only shared memory block names are required, as metadata (shape and dtype) are stored within the shared memory blocks using struct.
 """
 
 __version__ = "1.1"

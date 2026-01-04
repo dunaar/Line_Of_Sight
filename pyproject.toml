@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "line-of-sight"
+version = "0.1.0"
+description = "Fast intervisibility calculation using DTM and Numba. netCDF4 is required for preprocessing DTM data from NetCDF files into a tiled zip format"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "numba",
+    "msgspec",
+    "netCDF4",
+    "tqdm"
+]

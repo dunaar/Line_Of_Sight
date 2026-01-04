@@ -13,7 +13,12 @@ License: MIT
 Description: Preprocesses SRTM15 NetCDF data into 1° x 1° tiles, applies resampling for |lat| > 30°,
 and saves each latitude band as a single 1D NumPy array with tile start indices in a (180, 360) NumPy array in a ZIP archive with MessagePack serialization.
 It is possible to download SRTM15 NetCDF file from website : https://topex.ucsd.edu/pub/
-Example: https://topex.ucsd.edu/pub/srtm15_plus/SRTM15_V2.7.nc
+SRTM15 NetCDF file example: https://topex.ucsd.edu/pub/srtm15_plus/SRTM15_V2.7.nc
+
+Example:
+```
+python -m Line_Of_Sight.convert_dtm SRTM15_V2.7.nc srtm15_tiles_compressed.zip
+```
 """
 
 __version__ = "1.5"
@@ -29,7 +34,7 @@ from netCDF4 import Dataset
 from tqdm import tqdm
 
 # === Local modules ===
-from np_msgspec_msgpack_utils import enc
+from .np_msgspec_msgpack_utils import enc
 
 def process_band(args):
     """
@@ -217,8 +222,7 @@ def convert_file(input_filename, output_filename):
 
     print(f"Preprocessing completed. Saved to: {output_filename}")
 
-if __name__ == '__main__':
-    # === Built-in ===
+def main():
     import argparse
 
     logging.basicConfig(
@@ -235,3 +239,6 @@ if __name__ == '__main__':
     print(f'Input file: {args.input}')
     print(f'Output file: {args.output}')
     convert_file(args.input, args.output)
+
+if __name__ == '__main__':
+    main()
