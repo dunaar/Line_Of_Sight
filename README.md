@@ -1,5 +1,5 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18148413.svg)](https://doi.org/10.5281/zenodo.18148413)
-# Radio Line Of Sight
+# Radio Lines Of Sight over Digital Terrain Model
 
 ## Overview
 
